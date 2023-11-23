@@ -6,7 +6,6 @@
 * use in 1909 and above system versions. The instructions
 * are abstract in some cases so make sure to apply as per
 * your requirement. Goodluck fearless abap'er.
-* Test changes
 *----------------------------------------------------------*
 
 report ZABAP_S4_Snippets.
