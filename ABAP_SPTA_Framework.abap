@@ -9,12 +9,10 @@
 * Still needs some work but will get to it when possible
 *----------------------------------------------------------*
 
-
-
 * Main Forms:
 REPORT zspta_framework. 
 
-
+* Includes to focus on
 INCLUDE:
 top,
 parallel_processing,
@@ -85,6 +83,8 @@ SELECTION-SCREEN END OF BLOCK b01.
 
 ENDFORM.
 
+FORM f_before_rfc.
+
 * Include parallel_processing.
 
 * This include will consist of three logical processing units
@@ -96,7 +96,7 @@ ENDFORM.
 * Every time the task manager intends to launch a new parallel task, it calls the RFC_BEFORE
 * callback form. In this form the application determines whether to start a new task and, if so, which
 * parameters it needs to supply the new child task.
-FORM f_before_rfc
+
 USING
 ft_before_rfc_imp TYPE spta_t_before_rfc_imp
 CHANGING
@@ -186,7 +186,6 @@ IMPORTING
 data = ls_task_data.
 
 ENDIF.
-
 
 * Call instance that will finish the processing of the current packet
 fs_user_param-proc_instance->finish_parallel_task(
@@ -456,263 +455,16 @@ ENDIF.
 ENDMETHOD.
 
 METHOD calc_pack_size_para_process.
+* This method will calculate and find the preferred packet size and volume based on the data
+* These are hard to do with a one size fits all approach so just look at these reminders below
 
-CONSTANTS:
-lc_num_packs_rel_diff TYPE I VALUE 2.
+* Make sure you are accounting for any locking or package sizes: master data dependencies or line items
+* for a posting activity. These items need to be combinded.
 
-DATA:
-lv_last_pack_size TYPE I,
-lv_prl_opt_cnt TYPE I,
-lv_num_packs TYPE I,
-lv_cnt TYPE I,
-lv_opt TYPE boole_d,
-lv_num_packs_prl TYPE I,
-lv_num_packs_tmp_prl TYPE I,
-lv_num_packs_tmp TYPE I,
-lv_first_do_call TYPE boole_d,
-lv_first_do_call0 TYPE boole_d,
-lv_pack_size_tmp TYPE I,
-lv_pack_size_min TYPE I,
-lv_num_packs_rel TYPE I,
-lv_num_packs_opt TYPE I,
-lv_pack_size_max_opt TYPE tb_par_msize,
-lv_num_packs_rel_opt TYPE I,
-lv_num_packs_last TYPE I,
-lv_num_packs_rel_last TYPE I,
-lv_pack_size_max_last TYPE tb_par_msize,
-lv_num_packs_rel_min TYPE I VALUE 100.
+* If a single package contains hierarchical values such as parent and child references
+* those should not be split up to make sure the hierarchy is kept intact
 
-IF iv_pack_size_max < = 0 
-OR iv_number_keys = 0
-OR iv_pack_size_min > iv_pack_size_max
-OR iv_prl_prc_max <= 1.
-RAISE EXCEPTION TYPE gcx_pp
-EXPORTING
-iv_msgid = 'Put_your_message_class'
-iv_msgno = 'Put your message number' "Missing thread processing information”
-iv_msgty = 'E'
-
-ENDIF.
-
-IF iv_number_keys LE iv_pack_size_min.
-rv_pack_size = iv_number_keys.
-RETURN.
-ENDIF.
-
-* Number of iterations for optimization
-IF iv_prl_prc_max <= 10.
-lv_prl_opt_cnt = 5.
-ELSEIF  iv_prl_prc_max <= 50.
-lv_prl_opt_cnt = 4.
-ELSE.
-lv_prl_opt_cnt = 3.
-ENDIF.
-
-* Determine required number of packets
-rv_pack_size = iv_pack_size_max.
-lv_num_packs = iv_number_keys div rv_pack_size.
-lv_last_pack_size = iv_number_keys MOD rv_pack_size.
-
-lv_pack_size_min = iv_pack_size_min.
-IF lv_pack_size_min = 0.
-* Minimum packet size must be > 0
-lv_pack_size_min = 1.
-ENDIF.
-
-lv_cnt = 0.
-lv_first_do_call0 = abap_true.
-
-IF lv_last_pack_size > 0 AND lv_last_pack_size >= lv_pack_size_min.
-lv_num_packs += 1.
-ENDIF.
-
-lv_num_packs_opt = lv_num_packs_last = lv_num_packs.
-lv_pack_size_max_opt = lv_pack_size_max_last = rv_pack_size.
-lv_num_packs_prl = 
-
-IF lv_num_packs < lv_num_packs_prl.
-
-DO lv_prl_opt_cnt TIMES.
-
-lv_cnt += 1.
-lv_num_packs_prl = iv_prl_prc_max * lv_cnt.
-
-* Maximum number of packages=> target for optimization.
-IF lv_cnt > 1.
-
-* Reduce the minimum percentage of parallel processes used per iteration
-lv_num_packs_rel_min -=  lc_num_packs_rel_diff.
-* Determine starting max packet size
-lv_pack_size_tmp = iv_number_keys DIV lv_num_packs_prl.
-IF rv_pack_size < lv_pack_size_tmp
-AND lv_pack_size_tmp >= lv_pack_size_min
-AND  lv_pack_size_tmp <= lv_pack_size_max
-AND  lv_pack_size_tmp > 0.
-rv_pack_size = lv_pack_size_tmp.
-ENDIF.
-ENDIF.
-
-* End of optimization
-IF rv_pack_size <= lv_pack_size_min
-OR rv_pack_size < 2
-OR ( lv_num_packs_rel_opt >= lv_num_packs_rel_min
-AND lv_num_packs_rel_opt <= 100 ).
-* Optimum solution found
-EXIT.
-ENDIF.
-
-CLEAR:
-lv_opt.
-
-lv_first_do_call = abap_true.
-
-lv_num_packs = iv_number_keys DIV rv_pack_size.
-lv_last_pack_size = iv_number_keys MOD rv_pack_size.
-IF lv_last_pack_size > 0 AND lv_last_pack_size >= lv_pack_size_min.
-lv_num_packs +=1.
-ENDIF.
-
-IF lv_num_packs = lv_num_packs_prl.
-* Optimum solution found
-lv_num_packs_opt = lv_num_packs.
-lv_pack_size_max_opt = rv_pack_size.
-lv_num_packs_rel_opt = lv_num_packs_rel = 100.
-CLEAR:
-lv_first_do_call.
-EXIT.
-
-ELSE.
-
-WHILE lv_opt = abap_false.
-
-IF lv_cnt = 1.
-lv_num_packs_rel_last = 100 * lv_num_packs / lv_num_packs_prl.
-ELSEIF lv_first_do_call = abap_false
-OR lv_first_do_call0 = abap_true.
-lv_num_packs_tmp_prl = iv_prl_prc_max * ( lv_cnt - 1 ).
-lv_num_packs_tmp = lv_num_packs - lv_num_packs_tmp_prl.
-lv_num_packs_tmp_prl = lv_num_packs_prl - lv_num_packs_tmp_prl.
-lv_num_packs_rel_last = 100 * lv_num_packs_tmp / lv_num_packs_tmp_prl.
-ENDIF.
-
-IF lv_num_packs_rel_opt IS INITIAL.
-lv_num_packs_rel_opt = lv_num_packs_rel_last.
-ENDIF.
-
-rv_pack_size -= 1.
-
-lv_num_packs = iv_number_keys DIV rv_pack_size.
-lv_last_pack_size = iv_number_keys MOD rv_pack_size.
-
-IF lv_last_pack_size > 0 AND lv_last_pack_size >= lv_pack_size_min.
-lv_num_packs +=1.
-ENDIF.
-
-CLEAR:
-lv_first_do_call, lv_first_do_call0.
-
-IF lv_num_packs = lv_num_packs_prl.
-* Optimum solution found
-lv_opt = abap_true.
-lv_num_packs_opt = lv_num_packs_last = lv_num_packs.
-lv_num_packs -= 1.
-lv_pack_size_max_opt = lv_pack_size_max_last = rv_pack_size.
-lv_num_packs_rel_opt = lv_num_packs_rel = 100.
-EXIT.
-
-ELSE.
-
-IF lv_cnt = 1.
-lv_num_packs_rel = 100 * lv_num_packs / lv_num_packs_prl.
-ELSE.
-lv_num_packs_tmp_prl = iv_prl_prc_max * ( lv_cnt - 1 ).
-lv_num_packs_tmp = lv_num_packs - lv_num_packs_tmp_prl.
-lv_num_packs_tmp_prl = lv_num_packs_prl - lv_num_packs_tmp_prl.
-lv_num_packs_rel_last = 100 * lv_num_packs_tmp / lv_num_packs_tmp_prl.
-ENDIF.
-
-lv_num_packs_last = lv_num_packs.
-lv_pack_size_max_last = rv_pack_size.
-
-* Check relative usage of parallel processes
-IF lv_num_packs_rel >= 100.
-lv_opt = abap_true. 
-
-ELSEIF lv_num_packs_rel < 0.
-lv_opt = abap_true.
-
-ELSEIF lv_num_packs_rel_opt > 100
-OR ( lv_num_packs_rel > lv_num_packs_rel_last 
-AND lv_num_packs_rel > lv_num_packs_rel_opt ).
-
-lv_num_packs_opt = lv_num_packs.
-IF lv_last_pack_size > 0 AND lv_last_pack_size >= lv_pack_size_min.
-lv_num_packs += 1. 
-ENDIF.
-
-lv_pack_size_max_opt = rv_pack_size.
-lv_num_packs_rel_opt = lv_num_packs_rel.
-
-ENDIF.
-ENDIF.
-
-IF  rv_pack_size <= lv_pack_size_min
-OR  rv_pack_size < 2
-OR ( lv_num_packs_rel >= lv_num_packs_rel_min 
-AND lv_num_packs_rel <= 100 ).
-lv_opt = abap_true.
-ENDIF.
-
-ENDWHILE.
-ENDIF.
-
-ENDDO.
-ENDIF.
-
-* Take the optimum values and return for output.
-rv_pack_size = lv_pack_size_max_opt.
-
-ENDMETHOD.
-
-METHOD prepare_parallel_task.
-
-READ TABLE dt_task_data
-INDEX 1 ASSIGNING FIELD-SYMBOL(<lfs_task_data>).
-IF sy-subrc EQ 0.
-
-*Increment the packet index
-<lfs_task_data>-importing-package_seq = dv_package_seq += 1.
-
-* Append the exporting values to be carried into next PP workflow
-es_task_data = VALUE ty_task_data(
-importing = <lfs_task_data>-importing
-exporting = <lfs_task_data>-exporting
-changing = <lfs_task_data>-changing ).
-
-* Add task identifiers for task manager
-APPEND LINES OF <lfs_task_data>-importing-object
-TO ct_objects_in_process.
-
-* Raise message for user. Logic will work better with message class entry
-* Modify how you need it to be
-IF sy-batch EQ abap_true.
-MESSAGE i000(Message_class) WITH
-'Packet' &1<lfs_task_data>-importing-package_seq 
-'WITH' &2<lfs_task_data>-importing-package_rec_cnt
-' record(s) submitted for processing.'
-ENDIF. 
-
-* Remove our exporting task segment before next process.
-DELETE dt_task_data INDEX 1.
-
-* We tell task manager that validation was okay
-cs_before_rfc_exp-start_rfc = abap_true.
-
-ELSE.
-* No packages found or validations failed
-cs_before_rfc_exp-start_rfc = abap_false.
-ENDIF.
-
+rv_packet_size_opt = foo-bar.
 ENDMETHOD.
 
 METHOD process_parallel_task.
