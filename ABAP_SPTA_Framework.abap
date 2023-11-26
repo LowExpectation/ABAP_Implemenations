@@ -303,7 +303,9 @@ IMPORTING
 iv_number_keys TYPE I,
 iv_pack_size_max TYPE I,
 iv_pack_size_min TYPE I,
-iv_prl_prc_max TYPE I.
+iv_prl_prc_max TYPE I
+RETURNING
+VALUE(rv_packet_size_opt) TYPE int4.
 
 CLASS IMPLEMENTATION:
 
