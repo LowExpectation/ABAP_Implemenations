@@ -5,7 +5,8 @@
 * Quick guide to implementing and calling custom BADI
 *----------------------------------------------------------*
 
-*Implementing custom BADI instance. This is not S4 specific but is a good choice when you need to *keep standard process and auditing with a large enhancement operation.
+*Implementing custom BADI instance. This is not S4 specific but is a good choice when you need to
+*keep standard process and auditing with a large enhancement operation.
 
 * Step 1 - 4.
 * Create Enhancement Spot(ES) SE18 (Reusing Instantiation)
@@ -24,7 +25,7 @@ TRY.
 
 
 * Allows for creation of a BADI object similar to CREATE OBJECT but handles variants also
-GET BADI lo_badi_custom_imp. "Maybe can add constructor here or multiple badi criteria
+GET BADI lo_badi_custom_imp. "Does not support a constructor variable input as of last research
 
 * Here we only have a single use call but more care needs to be taken if multi use
 * Notice that we query the BADI object instead of a class or interface using CALL BADI
