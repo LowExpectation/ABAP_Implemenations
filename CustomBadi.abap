@@ -3,6 +3,7 @@
 *
 *----------------------------------------------------------*
 * Quick guide to implementing and calling custom BADI
+* For a working example of this BADI please see S4-ABAP-Snippet-Report class include within this repository
 *----------------------------------------------------------*
 
 *Implementing custom BADI instance. This is not S4 specific but is a good choice when you need to
